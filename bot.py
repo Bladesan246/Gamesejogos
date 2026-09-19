@@ -13,26 +13,33 @@ import cloudscraper
 from database import ja_foi_enviado, registrar_envio
 from scraper import obter_todos_os_jogos, raspar_detalhes_do_jogo, gerar_link_gameplay_youtube
 
-# === SERVIDOR HTTP DUMMY (Para satisfazer o Web Service do Render) ===
-class DummyHTTPHandler(BaseHTTPRequestHandler):
+# === SERVIDOR HTTP DUMMY (Corrigido para UptimeRobot / Render) ===
+class SimplePingHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        # Responde HTTP 200 OK com cabeçalhos apropriados
         self.send_response(200)
-        self.send_header("Content-type", "text/plain; charset=utf-8")
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.end_headers()
-        self.wfile.write("Bot de Jogos para Telegram esta online e ativo no Render!".encode('utf-8'))
+        response_text = "Bot de Jogos esta ativo e operacional no Render!"
+        self.wfile.write(response_text.encode("utf-8"))
 
     def log_message(self, format, *args):
-        # Silencia os logs de acesso HTTP no console do Render
-        return
+        # Imprime no log do Render sempre que o UptimeRobot fizer ping
+        print(f"📡 [Ping HTTP] Requisição recebida com sucesso de: {self.client_address[0]}")
 
-def iniciar_servidor_http():
-    porta = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(("0.0.0.0", porta), DummyHTTPHandler)
-    print(f"🌐 [Web Service] Servidor HTTP ativo e escutando na porta {porta}")
-    server.serve_forever()
+def iniciar_servidor_ping():
+    # Obtém a porta dinâmica do Render (padrão 10000 se não estiver definida)
+    porta = int(os.environ.get("PORT", 10000))
+    try:
+        server = HTTPServer(("0.0.0.0", porta), SimplePingHandler)
+        print(f"🌐 [Render Web Service] Servidor HTTP escutando na porta {porta}")
+        server.serve_forever()
+    except Exception as e:
+        print(f"❌ Erro ao iniciar servidor HTTP na porta {porta}: {e}")
 
-# Inicia o servidor HTTP em uma thread separada em segundo plano
-threading.Thread(target=iniciar_servidor_http, daemon=True).start()
+# Inicia o servidor HTTP em uma thread separada antes de executar o loop principal
+thread_http = threading.Thread(target=iniciar_servidor_ping, daemon=True)
+thread_http.start()
 
 
 # === CONFIGURAÇÕES DA AUTOMAÇÃO ===
