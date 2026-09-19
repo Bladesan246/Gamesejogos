@@ -19,7 +19,7 @@ class DummyHTTPHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/plain; charset=utf-8")
         self.end_headers()
-        self.wfile.write(b"Bot de Jogos para Telegram está online e ativo no Render!")
+        self.wfile.write("Bot de Jogos para Telegram esta online e ativo no Render!".encode('utf-8'))
 
     def log_message(self, format, *args):
         # Silencia os logs de acesso HTTP no console do Render
