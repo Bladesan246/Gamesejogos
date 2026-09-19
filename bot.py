@@ -6,22 +6,45 @@ import urllib.parse
 import time
 import re
 import secrets
-import random
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Bot
 import cloudscraper
 from database import ja_foi_enviado, registrar_envio
 from scraper import obter_todos_os_jogos, raspar_detalhes_do_jogo, gerar_link_gameplay_youtube
+
+# === SERVIDOR HTTP DUMMY (Para satisfazer o Web Service do Render) ===
+class DummyHTTPHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(b"Bot de Jogos para Telegram está online e ativo no Render!")
+
+    def log_message(self, format, *args):
+        # Silencia os logs de acesso HTTP no console do Render
+        return
+
+def iniciar_servidor_http():
+    porta = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", porta), DummyHTTPHandler)
+    print(f"🌐 [Web Service] Servidor HTTP ativo e escutando na porta {porta}")
+    server.serve_forever()
+
+# Inicia o servidor HTTP em uma thread separada em segundo plano
+threading.Thread(target=iniciar_servidor_http, daemon=True).start()
+
 
 # === CONFIGURAÇÕES DA AUTOMAÇÃO ===
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8830071006:AAHXk4JjRmYTrylvkOuSm1jpcy_8FLB63iw")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "@gamesejogoss")
 SITE_ALVO = "https://fitgirl-repacks.site/"
 
-# Varre até 5 páginas para manter uma boa fila de lançamentos e jogos recentes
+# Mapeia as primeiras páginas para manter uma boa fila de lançamentos
 LIMITE_PAGINAS = 5
 
-# Intervalo ajustado para 2 horas
-INTERVALO_HORAS = 0.02 
+# Intervalo padrão de 2 horas entre cada envio
+INTERVALO_HORAS = 2.0 
 
 DOMINIO_ENCURTADOR = "linkmonetizado.com"
 ENCURTADOR_API_KEY = os.environ.get("ENCURTADOR_API_KEY", "b56fc7474ea7a7cfc3606ce7fd38802dd10dc9e8")
