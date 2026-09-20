@@ -1,6 +1,6 @@
-python-telegram-bot
-cloudscraper
-beautifulsoup4
-pymongo
-dnspython
-pillow
+python-telegram-bot>=20.0
+cloudscraper>=1.2.60
+beautifulsoup4>=4.11.0
+pymongo>=4.3.0
+certifi>=2023.7.22
+Pillow>=9.0.0
