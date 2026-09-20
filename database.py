@@ -1,31 +1,40 @@
 import os
+import time
 from pymongo import MongoClient
 
-# URI de conexão do MongoDB Atlas
+# Carrega a string de conexão das variáveis de ambiente (com fallback de segurança)
 MONGO_URI = os.environ.get(
     "MONGO_URI",
-    "mongodb+srv://crowbrawl937_db_user:aLXwCJtSpUHhEbrZ@gamesejogos.yzj7pgg.mongodb.net/?appName=GameseJogos"
+    "mongodb+srv://bladesan246:42131238805Paulo@cluster0.p0hbf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 )
 
 client = MongoClient(MONGO_URI)
-db = client["bot_jogos"]
-colecao = db["historico_enviados"]
+db = client["bot_telegram_jogos"]
+colecao = db["historico_postagens"]
 
+def normalizar_url(url: str) -> str:
+    """Padroniza a URL removendo espaços e garantindo a barra no final."""
+    if not url:
+        return ""
+    url = url.strip()
+    if not url.endswith('/'):
+        url += '/'
+    return url
 
-def ja_foi_enviado(url_pagina: str) -> bool:
-    """Verifica se a URL do jogo já foi salva no MongoDB."""
-    try:
-        resultado = colecao.find_one({"url_pagina": url_pagina})
-        return resultado is not None
-    except Exception as e:
-        print(f"⚠️ [Database] Erro ao consultar banco: {e}")
+def ja_foi_enviado(url: str) -> bool:
+    """Verifica se a URL normalizada já existe no MongoDB Atlas."""
+    url_limpa = normalizar_url(url)
+    if not url_limpa:
         return False
+    return colecao.find_one({"url": url_limpa}) is not None
 
-
-def registrar_envio(url_pagina: str):
-    """Grava a URL do jogo no MongoDB Atlas para evitar duplicatas."""
-    try:
-        colecao.insert_one({"url_pagina": url_pagina})
-        print(f"💾 [Database] Salvo no histórico: {url_pagina}")
-    except Exception as e:
-        print(f"⚠️ [Database] Erro ao salvar no banco: {e}")
+def registrar_envio(url: str):
+    """Registra ou atualiza a URL normalizada no banco de dados."""
+    url_limpa = normalizar_url(url)
+    if not url_limpa:
+        return
+    colecao.update_one(
+        {"url": url_limpa},
+        {"$set": {"url": url_limpa, "timestamp": time.time()}},
+        upsert=True
+    )

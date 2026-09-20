@@ -10,13 +10,17 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Bot
 import cloudscraper
-from database import ja_foi_enviado, registrar_envio
+from database import ja_foi_enviado, registrar_envio, normalizar_url
 from scraper import obter_todos_os_jogos, raspar_detalhes_do_jogo, gerar_link_gameplay_youtube
 
-# === SERVIDOR HTTP DUMMY (Corrigido para UptimeRobot / Render) ===
+# === CACHE EM MEMÓRIA (Evita duplicação no mesmo processo) ===
+ENVIADOS_EM_MEMORIA = set()
+
+
+# === SERVIDOR HTTP DUMMY (Ajustado para o Render / UptimeRobot) ===
 class SimplePingHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # Responde HTTP 200 OK com cabeçalhos apropriados
+        # Responde HTTP 200 OK
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.end_headers()
@@ -24,11 +28,10 @@ class SimplePingHandler(BaseHTTPRequestHandler):
         self.wfile.write(response_text.encode("utf-8"))
 
     def log_message(self, format, *args):
-        # Imprime no log do Render sempre que o UptimeRobot fizer ping
+        # Imprime no log do Render quando receber o ping do UptimeRobot
         print(f"📡 [Ping HTTP] Requisição recebida com sucesso de: {self.client_address[0]}")
 
 def iniciar_servidor_ping():
-    # Obtém a porta dinâmica do Render (padrão 10000 se não estiver definida)
     porta = int(os.environ.get("PORT", 10000))
     try:
         server = HTTPServer(("0.0.0.0", porta), SimplePingHandler)
@@ -37,7 +40,7 @@ def iniciar_servidor_ping():
     except Exception as e:
         print(f"❌ Erro ao iniciar servidor HTTP na porta {porta}: {e}")
 
-# Inicia o servidor HTTP em uma thread separada antes de executar o loop principal
+# Inicia o servidor HTTP em segundo plano na inicialização
 thread_http = threading.Thread(target=iniciar_servidor_ping, daemon=True)
 thread_http.start()
 
@@ -47,10 +50,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8830071006:AAHXk4JjRmYTrylvkO
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "@gamesejogoss")
 SITE_ALVO = "https://fitgirl-repacks.site/"
 
-# Mapeia as primeiras páginas para manter uma boa fila de lançamentos
 LIMITE_PAGINAS = 5
-
-# Intervalo padrão de 2 horas entre cada envio
 INTERVALO_HORAS = 2.0 
 
 DOMINIO_ENCURTADOR = "linkmonetizado.com"
@@ -241,11 +241,13 @@ async def executar_ciclo():
         print("⚠️ Nenhum jogo encontrado nas páginas recentes.")
         return
 
+    # Processa os jogos da ordem do mais antigo para o mais recente
     for jogo in reversed(jogos):
         titulo = jogo["titulo"]
-        url_pagina = jogo["url_pagina"]
+        url_pagina = normalizar_url(jogo["url_pagina"])
 
-        if ja_foi_enviado(url_pagina):
+        # Checagem dupla: no conjunto em memória local E no MongoDB Atlas
+        if url_pagina in ENVIADOS_EM_MEMORIA or ja_foi_enviado(url_pagina):
             continue
 
         print(f"🆕 [Jogo Selecionado] Processando: {titulo}")
@@ -265,6 +267,7 @@ async def executar_ciclo():
 
         if sucesso:
             registrar_envio(url_pagina)
+            ENVIADOS_EM_MEMORIA.add(url_pagina)
             print("🎯 Postagem efetuada com sucesso! Encerrando este ciclo.")
             return
 
